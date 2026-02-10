@@ -1,0 +1,17 @@
+{
+  "name": "vortex-sync-root",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "frontend": "yarn workspace frontend dev",
+    "backend": "yarn workspace backend start:dev",
+    "build:all": "yarn workspaces run build"
+  }
+}
