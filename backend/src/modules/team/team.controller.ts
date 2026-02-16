@@ -3,6 +3,7 @@ import {TeamService} from "./team.service";
 import {UpdateTeamMemberDto} from "./teamDTO/UpdateTeamMemberDto";
 import {ParseTeamMemberPipe} from "../../common/pipes/teamPipe";
 
+
 @Controller('team')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class TeamController {
