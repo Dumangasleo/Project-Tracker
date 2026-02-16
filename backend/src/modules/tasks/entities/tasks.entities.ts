@@ -26,7 +26,7 @@ export class AssignedTask {
     @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
     EstimatedHours: number;
 
-    @Column({ type: 'timestamp', nullable: true })
+    @Column({ type: 'datetime2', nullable: true })
     DueDate: Date;
 
     @CreateDateColumn()
