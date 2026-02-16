@@ -184,7 +184,7 @@ const getProjectName = (projectId) => {
           <td colspan="6" class="px-6 py-12 text-center text-slate-500">
             <div class="flex flex-col items-center gap-2">
               <span class="animate-spin text-2xl">⏳</span>
-              <p class="animate-pulse">Fetching tasks from server...</p>
+              <p class="animate-pulse"> Fetching tasks from server...</p>
             </div>
           </td>
         </tr>
