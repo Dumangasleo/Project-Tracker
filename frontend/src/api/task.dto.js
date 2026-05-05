@@ -5,9 +5,10 @@ export const mapToAssignTaskDTO = (formData) => {
         Description: formData.Description || '',
         Status: formData.Status || 0,
         Priority: formData.Priority || 1,
-        ProjectId: Number(formData.ProjectId),
-        TeamMemberId: Number(formData.TeamMemberId),
+        ProjectId: formData.ProjectId ? Number(formData.ProjectId) : null,
+        TeamMemberId: formData.TeamMemberId ? Number(formData.TeamMemberId) : null,
         DueDate: formData.DueDate ? new Date(formData.DueDate).toISOString() : null,
-        EstimatedHours: formData.EstimatedHours || 0
+        EstimatedHours: formData.EstimatedHours || 0,
+        CreatedBy: formData.CreatedBy
     };
 };
