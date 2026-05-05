@@ -12,6 +12,9 @@ import {TypeOrmModule} from "@nestjs/typeorm";
 import {ConfigModule, ConfigService} from "@nestjs/config";
 import {EncryptionInterceptor} from "./common/interceptors/encryption.interceptor";
 import {DecryptionInterceptor} from "./common/interceptors/decryption.interceptor";
+import { ProjectModule } from './modules/project/project.module';
+import { ProjectController } from './modules/project/project.controller';
+import { ProjectService } from './modules/project/project.service';
 
 
 @Module({
@@ -40,9 +43,9 @@ import {DecryptionInterceptor} from "./common/interceptors/decryption.intercepto
         },
       }),
     }),
-      DashboardModule, TasksModule, TeamModule, SettingsModule],
+      DashboardModule, TasksModule, TeamModule, SettingsModule, ProjectModule],
 
-  controllers: [AppController],
+  controllers: [AppController, ProjectController],
   providers: [
       AppService,
       EncryptionInterceptor, // need e register bilang isang regular provider para makita ng nestJS kung saan ang encryption and Decryption interceptors
@@ -55,6 +58,7 @@ import {DecryptionInterceptor} from "./common/interceptors/decryption.intercepto
       provide: APP_INTERCEPTOR,
       useClass: DecryptionInterceptor,
     },
+    ProjectService,
   ],
 })
 export class AppModule {}
