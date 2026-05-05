@@ -1,23 +1,34 @@
 import {BadRequestException, Injectable, NotFoundException} from '@nestjs/common';
 import {InjectRepository} from "@nestjs/typeorm";
-import {AssignedTask} from "./entities/tasks.entities";
 import {Repository} from "typeorm";
 import {CreateTaskDto} from "./taskDTO/taskDTO";
+import {TaskEntity} from "./entities/tasks.entities";
 
 @Injectable()
 export class TasksService {
     constructor(
-        @InjectRepository(AssignedTask)
-        private readonly taskRepository: Repository<AssignedTask>,
+        @InjectRepository(TaskEntity)
+        private readonly taskRepository: Repository<TaskEntity>,
     ) {}
 
-    async findAll(): Promise<AssignedTask[]> {
+    async findAll(page: number = 1, limit: number = 20, taskType?: string): Promise<TaskEntity[]> {
+        const skip = (page - 1) * limit;
+
+        const whereCondition: any = {};
+
+        if (taskType && taskType !== 'ALL') {
+            whereCondition.TaskType = Number(taskType);
+        }
+
         return await this.taskRepository.find({
-            order: { DateCreated: 'ASC' } // TASK CHANGES
+            where: whereCondition,
+            skip: skip,
+            take: limit,
+            order: { DateCreated: 'ASC' }
         });
     }
 
-    async assignTask(task: CreateTaskDto): Promise<AssignedTask> {
+    async assignTask(task: CreateTaskDto): Promise<TaskEntity> {
         // LOGIC: Check if a task with the same title already exists for this user
         const existingTask = await this.taskRepository.findOne({
             where: { TaskName: task.TaskName }
@@ -31,13 +42,14 @@ export class TasksService {
         const newTask = this.taskRepository.create({
             ...task,
             Status: task.Status ?? 0,
+            TaskType: task.TaskType ?? 0,
             DateCreated: new Date(),
         });
 
         return await this.taskRepository.save(newTask);
     }
 
-    async updateTask(id: number, updateData: CreateTaskDto): Promise<AssignedTask> {
+    async updateTask(id: number, updateData: CreateTaskDto): Promise<TaskEntity> {
         const task = await this.taskRepository.findOne({where: {id} });
 
         if (!task) {

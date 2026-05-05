@@ -1,7 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    CreateDateColumn,
+    UpdateDateColumn,
+    ManyToOne,
+    JoinColumn
+} from 'typeorm';
+import {TeamMember} from "../../team/entities/team.entities";
 
-@Entity('assigned_tasks')
-export class AssignedTask {
+@Entity('AssignedTasks')
+export class TaskEntity  {
     @PrimaryGeneratedColumn('increment') // O 'uuid' para sa advanced setup
     id: number;
 
@@ -17,10 +26,21 @@ export class AssignedTask {
     @Column({ type: 'smallint', default: 1 }) // 1: Low, 2: Medium, 3: High
     Priority: number;
 
-    @Column({ type: 'bigint' })
-    ProjectId: number;
+    @Column({ type: 'smallint', default: 0 }) // 0: General, 1: Feature, 2: Bug Fix, 3: Hot Fix, 4: Release
+    TaskType: number;
 
-    @Column({ type: 'bigint' })
+    @ManyToOne(() => TeamMember)
+    @JoinColumn({ name: 'CreatedBy' })
+    creator: TeamMember;
+
+    @Column({ type: 'int', default: 1 })
+    CreatedBy: number;
+
+    @ManyToOne(() => TeamMember)
+    @JoinColumn({ name: 'TeamMemberId' })
+    assignee: TeamMember;
+
+    @Column({ type: 'int', nullable: true }) // Nullable para sa unassigned tickets
     TeamMemberId: number;
 
     @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })

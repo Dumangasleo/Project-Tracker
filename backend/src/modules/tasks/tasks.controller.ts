@@ -1,4 +1,4 @@
-import {Controller, Post, Body, Get, Put, Param, Delete} from '@nestjs/common';
+import {Controller, Post, Body, Get, Put, Param, Delete, Query} from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import {CreateTaskDto} from "./taskDTO/taskDTO";
 
@@ -8,8 +8,16 @@ export class TasksController {
     constructor(private readonly tasksService: TasksService) {}
 
     @Get()
-    async getAllTasks() {
-        return await this.tasksService.findAll();
+    async getAllTasks(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('taskType') taskType?: string
+    ) {
+
+        const pageNum = page ? Number(page) : 1;
+        const limitNum = limit ? Number(limit) : 20;
+
+        return await this.tasksService.findAll(pageNum, limitNum, taskType);
     }
 
     @Post('assign')
