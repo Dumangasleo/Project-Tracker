@@ -28,9 +28,17 @@ export class CreateTaskDto {
     @IsNumber()
     ProjectId: number;
 
+    @IsOptional()
+    @IsNumber()
+    TaskType: number;
+
     @IsNotEmpty()
     @IsNumber()
-    TeamMemberId: number;
+    CreatedBy: number;
+
+    @IsOptional()
+    @IsNumber()
+    TeamMemberId?: number;
 
     @IsOptional()
     @IsNumber()
@@ -39,4 +47,9 @@ export class CreateTaskDto {
     @IsOptional()
     @IsDateString() // Dahil .toISOString() ang pinapasa ng frontend
     DueDate?: string;
+
+    @IsOptional()
+    @IsDateString()
+    DateCreated?: string;
+
 }
