@@ -1,64 +1,111 @@
-<script setup>
-import { onMounted, reactive, ref } from 'vue';
+<script setup lang="ts">
+import { onMounted, reactive, ref, watch, type Ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
 import { useTask } from '@/composables/useTask';
+import { useProject } from '@/composables/useProject'; //
+import { useInfiniteScroll } from '@/composables/InfiniteScrolling/useInfiniteScroll';
+
+import AppGrid from '@/components/Grid/AppGrid.vue';
+import AppButton from "@/components/Buttons/AppButton.vue";
+import AppComboBox from "@/components/ComboBox/AppComboBox.vue";
 
 // 1. Initialize Stores and Composables
 const taskStore = useTaskStore();
 const teamStore = useTeamStore();
-const { tasks, loading } = storeToRefs(taskStore);
 const { members } = storeToRefs(teamStore);
 const { assignTask, updateTask, deleteTask, isSubmitting, errorMessage } = useTask();
+const { projects, getProjects, fetchPaginatedProjects } = useProject();
 
-// 2. Local UI State
-const activeMenuId = ref(null);
-const editingTaskId = ref(null);
-const isModalOpen = ref(false);
-
+// 2. UI State & Form
 const form = reactive({
   TaskName: '',
   Description: '',
-  TeamMemberId: null,
-  ProjectId: 1,
+  TeamMemberId: null as number | null,
+  ProjectId: null as number | null,
   Priority: 1,
   Status: 0,
+  TaskType: 0,
   DueDate: ''
 });
 
-// 3. Custom Directive para sa Kebab Menu (Click Outside)
-const vClickOutside = {
-  mounted(el, binding) {
-    el.clickOutsideEvent = (event) => {
-      if (!(el === event.target || el.contains(event.target))) {
-        binding.value();
-      }
-    };
-    document.addEventListener("click", el.clickOutsideEvent);
-  },
-  unmounted(el) {
-    document.removeEventListener("click", el.clickOutsideEvent);
-  },
-};
+type Task = typeof form & { id: number; DateCreated: string; CreatedBy: number };
 
-// 4. Methods
+const activeMenuId = ref<number | null>(null);
+const editingTaskId = ref<number | null>(null);
+const isModalOpen = ref(false);
+
+const tabs = [
+  { id: 'ALL', label: 'All Tickets' },
+  { id: 0, label: 'General' },
+  { id: 1, label: 'Features' },
+  { id: 2, label: 'Bug Fixes' },
+  { id: 3, label: 'Hot Fixes' },
+  { id: 4, label: 'Releases' }
+];
+const activeTab = ref<number | string>('ALL');
+
+const columns = [
+  { key: 'DateCreated',  label: 'Assigned', width: '100px' },
+  { key: 'ProjectId',    label: 'Project',  width: '120px' },
+  { key: 'TaskName',     label: 'Objective', width: '320px' }, // Mas dako ni kay naa diri ang description
+  { key: 'CreatedBy',    label: 'Creator',     width: '140px' },
+  { key: 'TeamMemberId', label: 'Assignee',  width: '140px' },
+  { key: 'Status',       label: 'Status',    width: '100px' },
+  { key: 'Priority',     label: 'Priority',  width: '100px' },
+  { key: 'actions',      label: 'Actions',   align: 'center', width: '120px' },
+];
+
+// 4. Infinite Scroll
+const { items, loading, hasMore, loadMore, reset } = useInfiniteScroll(
+    async (page: number) => await taskStore.fetchPaginatedTasks(page, String(activeTab.value))
+);
+
+const tasks = items as Ref<Task[]>;
+const currentUserId = ref(1);
+const projectSearch = ref('');
+let searchTimer: any;
+
+const {
+  items: lazyProjects,
+  loading: isProjectLoading,
+  hasMore: hasMoreProjects,
+  loadMore: loadMoreProjects,
+  reset: resetProjects
+} = useInfiniteScroll(
+    async (page: number) => {
+
+      return await fetchPaginatedProjects(page, projectSearch.value);
+    }
+);
+
+watch(activeTab, async () => {
+  reset();
+  await loadMore();
+});
+
+// 5. Methods
 const openModal = () => {
   isModalOpen.value = true;
 };
 
 const closeModal = () => {
   isModalOpen.value = false;
-  editingTaskId.value = null; // Reset edit mode
-  form.TaskName = '';
-  form.Description = '';
-  form.TeamMemberId = null;
-  form.Priority = 1;
-  form.Status = 0;
-  form.DueDate = '';
+  editingTaskId.value = null;
+  Object.assign(form, {
+    TaskName: '',
+    Description: '',
+    TeamMemberId: null,
+    ProjectId: null,
+    Priority: 1,
+    Status: 0,
+    TaskType: 0,
+    DueDate: ''
+  });
 };
 
-const toggleMenu = (id) => {
+const toggleMenu = (id: number) => {
   activeMenuId.value = activeMenuId.value === id ? null : id;
 };
 
@@ -66,218 +113,314 @@ const closeMenu = () => {
   activeMenuId.value = null;
 };
 
-const openEditModal = (task) => {
+const openEditModal = (task: Task) => {
   editingTaskId.value = task.id;
-  // I-fill ang form gamit ang data ng task na i-e-edit
-  form.TaskName = task.TaskName;
-  form.Description = task.Description;
-  form.TeamMemberId = task.TeamMemberId;
-  form.Priority = task.Priority;
-  form.Status = task.Status;
-  form.DueDate = task.DueDate ? task.DueDate.split('T')[0] : '';
+  Object.assign(form, {
+    ...task,
+    ProjectId: task.ProjectId ? Number(task.ProjectId) : null,
+    TeamMemberId: task.TeamMemberId ? Number(task.TeamMemberId) : null,
 
+    DueDate: task.DueDate ? task.DueDate.split('T')[0] : ''
+  });
   isModalOpen.value = true;
   closeMenu();
 };
 
-
 const handleSubmit = async () => {
-  let result;
+  const payload = {
+    ...form,
+    CreatedBy: currentUserId.value
+  };
 
-  if (editingTaskId.value) {
-    // UPDATE: Ngayon ay dadaan na sa composable
-    result = await updateTask(editingTaskId.value, form);
-  } else {
-    // CREATE: Dadaan din sa composable
-    result = await assignTask(form);
-    // Kung success ang create, i-refresh ang listahan
-    if (result.success) await taskStore.fetchTasks();
-  }
+  const result = editingTaskId.value
+      ? await updateTask(editingTaskId.value, payload)
+      : await assignTask(payload);
 
-  // Isasara lang ang modal kung walang error
-  if (result && result.success) {
+  if (result?.success) {
     closeModal();
+    reset();
+    await loadMore();
   }
 };
 
-const handleDelete = async (id) => {
-  if (confirm('Are you sure you want to delete this task?')) {
-    const result = await deleteTask(id);
-    if (result.success) { closeMenu(); }
+const handleDelete = async (id: number) => {
+  if (!confirm('Are you sure?')) return;
+
+  const result = await deleteTask(id);
+  if (result?.success) {
+    closeMenu();
+    reset();
+    await loadMore();
+  }
+};
+
+const handleProjectSearch = (query: string) => {
+
+  clearTimeout(searchTimer);
+
+  searchTimer = setTimeout(async () => {
+    projectSearch.value = query;
+    resetProjects();
+    await loadMoreProjects();
+  }, 300);
+};
+
+const claimTask = async (task: Task) => {
+  if (!confirm('Are you sure you want to claim this ticket?')) return;
+
+  const currentUserId = 1;
+  const payload = { ...task, TeamMemberId: currentUserId };
+  const result = await updateTask(task.id, payload);
+
+  if (result?.success) {
+    closeMenu();
+    reset();
+    await loadMore();
   }
 };
 
 onMounted(() => {
-  taskStore.fetchTasks();
   teamStore.fetchMembers();
+  getProjects({ page: 1, limit: 100 });
+
+  console.log("Loaded Projects:", projects.value);
 });
 
-// 5. Helpers
-const getPriorityLabel = (priority) => {
-  const map = { 1: 'LOW', 2: 'MEDIUM', 3: 'HIGH' };
-  return map[priority] || 'LOW';
-};
+// 6. Helpers
+const getPriorityLabel = (p: number) =>
+    ({ 1: 'LOW', 2: 'MEDIUM', 3: 'HIGH' }[p] ?? 'LOW');
 
-const getPriorityColor = (priority) => {
-  if (priority === 3) return 'text-red-400 bg-red-400/10';
-  if (priority === 2) return 'text-amber-400 bg-amber-400/10';
+const getPriorityColor = (p: number) => {
+  if (p === 3) return 'text-red-400 bg-red-400/10';
+  if (p === 2) return 'text-amber-400 bg-amber-400/10';
   return 'text-emerald-400 bg-emerald-400/10';
 };
 
-const getStatusLabel = (status) => {
-  const map = { 0: 'Todo', 1: 'In Progress', 2: 'Done' };
-  return map[status] || 'Todo';
+const getStatusLabel = (s: number) =>
+    ({ 0: 'Todo', 1: 'In Progress', 2: 'Done' }[s] ?? 'Todo');
+
+const formatDate = (d: string) =>
+    d ? new Date(d).toLocaleDateString() : '---';
+
+const getMemberName = (id: number | null) => {
+  if (!id) return 'Unassigned';
+  const member = members.value.find((m) => m.id === Number(id));
+  return member ? `${member.FirstName} ${member.LastName}` : 'Unassigned';
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return '---';
-  return new Date(dateString).toLocaleDateString();
+
+const getCreatorName = (id: number | null) => {
+  if (!id) return 'System';
+  const member = members.value.find((m) => m.id === Number(id));
+  return member ? `${member.FirstName} ${member.LastName}` : 'Unknown';
 };
 
-const getMemberName = (memberId) => {
-  if (!memberId) return 'Unassigned';
-  const searchId = Number(memberId);
-  const member = members.value.find(m => m.id === searchId);
-  return member ? `${member.FirstName} ${member.LastName}` : `Loading... (${memberId})`;
+const getTaskTypeLabel = (type: number) => {
+  const found = tabs.find(t => t.id === type);
+  return found ? found.label : 'General';
 };
 
-const getProjectName = (projectId) => {
-  if (!projectId) return 'Unassigned';
-  const searchId = Number(projectId);
-  const member = members.value.find(m => m.id === searchId);
-  return member ? `${member.FirstName} ${member.LastName}` : `Loading... (${projectId})`;
-};
+watch(isModalOpen, (isOpen) => {
+  if (isOpen && lazyProjects.value.length === 0) {
+    loadMoreProjects();
+  }
+});
 </script>
 
 <template>
-  <div class="p-8">
-    <header class="flex justify-between items-center mb-8">
+  <div class="p-8 w-full">
+    <header class="flex justify-between items-center mb-6">
       <div>
         <h1 class="text-3xl font-bold text-white">Tasks Management</h1>
         <p class="text-slate-400">Keep track of your team's daily objectives.</p>
       </div>
-      <button
-          @click="openModal"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-      >
+      <AppButton variant="primary" @click="openModal">
         + New Task
-      </button>
+      </AppButton>
     </header>
 
-    <div class="bg-slate-900 border border-slate-800 rounded-xl">
-      <table class="w-full text-left">
-        <thead class="bg-slate-800/50 text-slate-400 text-sm uppercase">
-        <tr>
-          <th class="px-6 py-4 font-medium">Date Assigned</th>
-          <th class="px-6 py-4 font-medium">Project</th>
-          <th class="px-6 py-4 font-medium">Task Name</th>
-          <th class="px-6 py-4 font-medium">Member</th>
-          <th class="px-6 py-4 font-medium">Status</th>
-          <th class="px-6 py-4 font-medium">Priority</th>
-          <th class="px-6 py-4 font-medium">Due Date</th>
-          <th class="px-6 py-4 font-medium text-center">Actions</th>
-        </tr>
-        </thead>
-
-        <tbody class="divide-y divide-slate-800">
-        <tr v-if="loading">
-          <td colspan="6" class="px-6 py-12 text-center text-slate-500">
-            <div class="flex flex-col items-center gap-2">
-              <span class="animate-spin text-2xl">⏳</span>
-              <p class="animate-pulse"> Fetching tasks from server...</p>
-            </div>
-          </td>
-        </tr>
-
-        <tr v-else-if="tasks.length === 0">
-          <td colspan="6" class="px-6 py-12 text-center text-slate-500">
-            <div class="flex flex-col items-center gap-1">
-              <span class="text-3xl">📋</span>
-              <p>No tasks found. Click "+ New Task" to start.</p>
-            </div>
-          </td>
-        </tr>
-
-        <tr v-else v-for="task in tasks" :key="task.id" class="hover:bg-slate-800/30 transition-colors">
-          <td class="px-6 py-4 text-slate-400 text-sm">{{ formatDate(task.DateCreated) }}</td>
-          <td class="px-6 py-4 text-slate-400 text-sm">{{ formatDate(task.ProjectId) }}</td>
-          <td class="px-6 py-4">
-            <p class="text-white font-medium">{{ task.TaskName }}</p>
-            <p class="text-slate-500 text-sm">{{ task.Description }}</p>
-          </td>
-          <td class="px-6 py-4 text-slate-400 text-sm">{{ getMemberName(task.TeamMemberId) }}</td>
-          <td class="px-6 py-4">
-              <span class="px-2 py-1 rounded text-xs font-bold uppercase bg-slate-800 text-slate-300">
-                {{ getStatusLabel(task.Status) }}
-              </span>
-          </td>
-          <td class="px-6 py-4">
-              <span :class="['px-2 py-1 rounded text-xs font-bold uppercase', getPriorityColor(task.Priority)]">
-                {{ getPriorityLabel(task.Priority) }}
-              </span>
-          </td>
-          <td class="px-6 py-4 text-slate-400 text-sm">{{ formatDate(task.DueDate) }}</td>
-
-          <td class="px-6 py-4 text-center relative">
-            <button
-                @click.stop="toggleMenu(task.id)"
-                class="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors"
-            >
-              <span class="text-xl">⋮</span>
-            </button>
-
-            <div
-                v-if="activeMenuId === task.id"
-                v-click-outside="closeMenu"
-                class="absolute right-12 top-0 mt-2 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden"
-            >
-              <button
-                  @click="openEditModal(task)"
-                  class="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-indigo-600 transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                  @click="handleDelete(task.id)"
-                  class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </td>
-        </tr>
-        </tbody>
-      </table>
+    <div class="flex gap-2 mb-6 border-b border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
+      <AppButton
+          v-for="tab in tabs"
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :variant="activeTab === tab.id ? 'primary' : 'tertiary'"
+          class="whitespace-nowrap"
+      >
+        {{ tab.label }}
+      </AppButton>
     </div>
 
-    <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <AppGrid
+        :columns="columns"
+        :data="tasks"
+        :loading="loading"
+        :hasMore="hasMore"
+        @load-more="loadMore"
+    >
+      <template #cell-DateCreated="{ item }: {item: any}">
+        <span class="text-slate-400 text-sm">{{ formatDate(item.DateCreated) }}</span>
+      </template>
+
+      <template #cell-ProjectId="{ item }: {item: any}">
+        <span class="text-slate-400 text-sm">Project #{{ item.ProjectId }}</span>
+      </template>
+
+      <template #cell-TaskName="{ item }: {item: any}">
+        <div class="max-w-xs">
+          <div class="flex items-center gap-2 mb-1">
+        <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-700 text-slate-300">
+          {{ getTaskTypeLabel(item.TaskType) }}
+        </span>
+            <p class="text-white font-medium truncate">{{ item.TaskName }}</p>
+          </div>
+          <p class="text-slate-500 text-xs truncate">{{ item.Description }}</p>
+        </div>
+      </template>
+
+      <template #cell-CreatedBy="{ item }: {item: any}">
+        <div class="flex flex-col">
+          <span class="text-indigo-400 text-xs font-bold uppercase"> </span>
+          <span class="text-slate-300 text-sm">{{ getCreatorName(item.CreatedBy) }}</span>
+        </div>
+      </template>
+
+      <template #cell-TeamMemberId="{ item }: {item: any}">
+    <span :class="['text-sm', item.TeamMemberId ? 'text-slate-300' : 'text-amber-400/80 italic']">
+      {{ getMemberName(item.TeamMemberId) }}
+    </span>
+      </template>
+
+      <template #cell-Status="{ item }: {item: any}">
+    <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+      {{ getStatusLabel(item.Status) }}
+    </span>
+      </template>
+
+      <template #cell-Priority="{ item }: {item: any}">
+    <span :class="['px-2 py-1 rounded text-[10px] font-bold uppercase', getPriorityColor(item.Priority)]">
+      {{ getPriorityLabel(item.Priority) }}
+    </span>
+      </template>
+
+      <template #cell-DueDate="{ item }: {item: any}">
+        <span class="text-slate-400 text-sm">{{ formatDate(item.DueDate) }}</span>
+      </template>
+
+      <template #cell-actions="{ item }: {item: any}">
+        <div class="relative flex justify-center items-center gap-2 w-full">
+
+          <AppButton
+              v-if="!item.TeamMemberId && Number(item.CreatedBy) !== currentUserId"
+              variant="secondary"
+              text-color="#34d399"
+              class="text-[10px]! py-1! px-3! uppercase tracking-widest font-bold"
+              @click.stop="claimTask(item)"
+          >
+            Take Task
+          </AppButton>
+
+          <span
+              v-else-if="!item.TeamMemberId"
+              class="text-slate-500 text-[10px] uppercase font-bold italic tracking-tight"
+          >
+        Waiting for Assignee
+      </span>
+
+          <AppButton
+              variant="tertiary"
+              class="p-2! rounded-full!"
+              @click.stop="toggleMenu(item.id)"
+          >
+            <span class="text-xl">⋮</span>
+          </AppButton>
+
+          <div
+              v-if="activeMenuId === item.id"
+              class="absolute right-10 top-0 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col p-1 gap-1"
+          >
+            <AppButton variant="tertiary" class="w-full justify-start!" @click="openEditModal(item)">
+              Edit
+            </AppButton>
+            <AppButton variant="danger" class="w-full justify-start!" @click="handleDelete(item.id)">
+              Delete
+            </AppButton>
+          </div>
+        </div>
+      </template>
+    </AppGrid>
+
+    <div
+        v-if="isModalOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
+        @click.self="closeModal"
+    >
       <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-md shadow-2xl">
-        <h2 class="text-2xl font-bold text-white mb-6">Assign New Task</h2>
+        <h2 class="text-2xl font-bold text-white mb-6">
+          {{ editingTaskId ? 'Edit Task' : 'Assign New Task' }}
+        </h2>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-400 mb-1">Task Name</label>
-            <input v-model="form.TaskName" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <AppComboBox
+                v-model="form.ProjectId"
+                :items="lazyProjects"
+                label-key="ProjectName"
+                value-key="id"
+                placeholder="Search for a project..."
+                :loading="isProjectLoading"
+                :has-more="hasMoreProjects"
+                @load-more="loadMoreProjects"
+                @search="handleProjectSearch"
+            />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-400 mb-1">Description</label>
-            <textarea v-model="form.Description" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-24 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Task Name
+            </label>
+            <input
+                v-model="form.TaskName"
+                type="text"
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Description
+            </label>
+            <textarea
+                v-model="form.Description"
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white h-20 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-slate-400 mb-1">Assign Member</label>
-              <select v-model="form.TeamMemberId" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option :value="null">Select Member</option>
-                <option v-for="member in members" :key="member.id" :value="member.id">
-                  {{ member.FirstName }} {{ member.LastName }}
-                </option>
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                Type
+              </label>
+              <select
+                  v-model="form.TaskType"
+                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option :value="0">General</option>
+                <option :value="1">Feature</option>
+                <option :value="2">Bug Fix</option>
+                <option :value="3">Hot Fix</option>
+                <option :value="4">Release</option>
               </select>
             </div>
+
             <div>
-              <label class="block text-sm font-medium text-slate-400 mb-1">Priority</label>
-              <select v-model="form.Priority" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                Priority
+              </label>
+              <select
+                  v-model="form.Priority"
+                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <option :value="1">Low</option>
                 <option :value="2">Medium</option>
                 <option :value="3">High</option>
@@ -285,24 +428,51 @@ const getProjectName = (projectId) => {
             </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-slate-400 mb-1">Due Date</label>
-            <input v-model="form.DueDate" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                Assign Member
+              </label>
+              <select
+                  v-model="form.TeamMemberId"
+                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option :value="null">Unassigned</option>
+                <option
+                    v-for="member in members"
+                    :key="member.id"
+                    :value="member.id"
+                >
+                  {{ member.FirstName }} {{ member.LastName }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                Due Date
+              </label>
+              <input
+                  v-model="form.DueDate"
+                  type="date"
+                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </div>
         </div>
 
         <div class="mt-8 flex gap-3">
-          <button @click="closeModal" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg font-medium transition-colors">Cancel</button>
-          <button
-              @click="handleSubmit"
-              :disabled="isSubmitting"
-              class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white py-2 rounded-lg font-medium transition-colors"
-          >
-            {{ isSubmitting ? 'Saving...' : 'Save Task' }}
-          </button>
+          <AppButton variant="secondary" class="flex-1" @click="closeModal">
+            Cancel
+          </AppButton>
+          <AppButton variant="primary" class="flex-1" :loading="isSubmitting" @click="handleSubmit">
+            Save Task
+          </AppButton>
         </div>
 
-        <p v-if="errorMessage" class="text-red-400 text-sm mt-4 text-center">{{ errorMessage }}</p>
+        <p v-if="errorMessage" class="text-red-400 text-sm mt-4 text-center">
+          {{ errorMessage }}
+        </p>
       </div>
     </div>
   </div>
