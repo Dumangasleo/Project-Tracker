@@ -1,40 +1,49 @@
-import {Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UsePipes, ValidationPipe} from "@nestjs/common";
-import {TeamService} from "./team.service";
-import {UpdateTeamMemberDto} from "./teamDTO/UpdateTeamMemberDto";
-import {ParseTeamMemberPipe} from "../../common/pipes/teamPipe";
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { TeamService } from './team.service';
+import { CreateTeamMemberDto, UpdateTeamMemberDto } from './teamDTO/UpdateTeamMemberDto';
+import { TeamMember } from './entities/team.entities';
 
-
+@ApiTags('Team Members')
 @Controller('team')
-@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class TeamController {
     constructor(private readonly teamService: TeamService) {}
 
     @Get()
-    findAll() {
+    @ApiOperation({ summary: 'Get all team members along with its position' })
+    async findAll() {
         return this.teamService.findAll();
     }
 
-    @Get('positions') // Endpoint para sa dropdown
-    findAllPositions() {
+    @Get('positions')
+    @ApiOperation({ summary: 'Get all position for Vue ComboBox' })
+    async findAllPositions() {
         return this.teamService.findAllPositions();
     }
 
     @Post()
-    create(@Body(new ParseTeamMemberPipe()) createDto: UpdateTeamMemberDto) {
+    @ApiOperation({ summary: 'Add new team member' })
+    @ApiResponse({ status: 201, description: 'Successfully created.' })
+    @ApiBody({ type: CreateTeamMemberDto }) // Mao ni ang magpakita sa form sa Swagger
+    async create(@Body() createDto: CreateTeamMemberDto) {
         return this.teamService.create(createDto);
     }
 
     @Put(':id')
-    update(
+    @ApiOperation({ summary: 'Update team member information' })
+    @ApiResponse({ status: 200, description: 'Successfully updated the member.' })
+    @ApiResponse({ status: 404, description: 'Team Member not found' })
+    @ApiBody({ type: UpdateTeamMemberDto })
+    async update(
         @Param('id', ParseIntPipe) id: number,
-        @Body(new ParseTeamMemberPipe()) updateDTO: UpdateTeamMemberDto)
-    {
-        return this.teamService.update(id, updateDTO);
+        @Body() updateDto: UpdateTeamMemberDto
+    ) {
+        return this.teamService.update(id, updateDto);
     }
 
     @Delete(':id')
-    remove(@Param('id', ParseIntPipe) id: number) {
+    @ApiOperation({ summary: 'I-delete ang team member' })
+    async remove(@Param('id', ParseIntPipe) id: number) {
         return this.teamService.remove(id);
     }
-
 }

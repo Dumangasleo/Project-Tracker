@@ -7,7 +7,7 @@ import {storeToRefs} from "pinia";
 
 // Para sa combo box
 const showModal = ref(false); // Control para sa modal
-
+const searchQuery = ref("");
 const isEditing = ref(false);
 const currentMemberId = ref(null);
 
@@ -32,6 +32,27 @@ const {
   deleteMember: apiDeleteMember,
   isSubmitting
 } = useTeam();
+
+// 2. Kini nga listahan automatic mo-update kung naay mausab sa searchQuery o sa members
+const filteredMembers = computed(() => {
+  // Siguraduhon nato nga dili "null" o "undefined" ang members
+  if (!members.value) return [];
+
+  // I-convert ang search query sa lowercase para dili sensitive (e.g. "A" vs "a")
+  const query = searchQuery.value.toLowerCase().trim();
+
+  // Kung walay gi-type, i-return ang tanan
+  if (!query) return members.value;
+
+  // I-filter ang listahan
+  return members.value.filter(member => {
+    const firstName = member.FirstName?.toLowerCase() || '';
+    const lastName = member.LastName?.toLowerCase() || '';
+
+    // I-check kung ang search text naa ba sa First Name o Last Name
+    return firstName.includes(query) || lastName.includes(query);
+  });
+});
 
 
 // Function para buksan ang modal para sa Edit
@@ -91,7 +112,8 @@ onMounted(() => {
 
 <template>
   <div class="p-8 text-white relative">
-    <header class="mb-10 flex justify-between items-end">
+    <header class="mb-10">
+      <div class="flex justify-between items-end mb-8">
       <div>
         <h1 class="text-3xl font-bold">Team Members</h1>
         <p class="text-slate-400">The brilliant minds behind Vortex Sync.</p>
@@ -102,6 +124,21 @@ onMounted(() => {
       >
         + Add New Member
       </button>
+      </div>
+
+      <div class="relative max-w-md">
+    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </span>
+        <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search members by name..."
+            class="w-full bg-slate-900 border border-slate-800 p-3 pl-10 rounded-xl outline-none focus:border-indigo-500 transition-colors text-white"
+        />
+      </div>
     </header>
 
     <Transition name="fade">
@@ -162,9 +199,9 @@ onMounted(() => {
     </Transition>
 
     <div v-if="!loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div v-for="member in members" :key="member.id"
+      <div v-for="member in filteredMembers" :key="member.id"
            @click="editMember(member)"
-           class="cursor-pointer bg-slate-900 border border-slate-800 p-6 rounded-2xl hover:border-indigo-500 hover:bg-slate-800/50 transition-all group relative overflow-hidden"
+           class="cursor-pointer bg-slate-900 border border-slate-800 p-6 rounded-2xl ..."
       >
 
         <div class="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">

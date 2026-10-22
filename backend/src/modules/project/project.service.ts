@@ -3,11 +3,17 @@ import {InjectRepository} from "@nestjs/typeorm";
 import {Like, Repository} from "typeorm";
 import {ProjectEntity} from "./entities/project.entities";
 import {ProjectDTO} from "./projectDTO/projectDto";
+import {NotificationPublisher} from "../../messaging/NotificationPublisher";
+import {NotificationPattern} from "../../messaging/NotificationPattern";
+import {ProjectCreatedEvent} from "../../messaging/event/ProjectCreatedEvent";
 
 @Injectable()
 export class ProjectService {
-    constructor(@InjectRepository(ProjectEntity)
-                private readonly projectRepository: Repository<ProjectEntity>) {}
+    constructor(
+        @InjectRepository(ProjectEntity)
+        private readonly projectRepository: Repository<ProjectEntity>,
+        private readonly publisher: NotificationPublisher,
+    ) {}
 
 
 
@@ -60,7 +66,18 @@ export class ProjectService {
             DateCreated: new Date(),
         });
 
-        return await this.projectRepository.save(newProject);
+        const saved = await this.projectRepository.save(newProject);
+
+        this.publisher.publish(
+            NotificationPattern.PROJECT_CREATED,
+            new ProjectCreatedEvent(
+                saved.id,
+                saved.ProjectName,
+                saved.TeamMemberId ?? null,
+            ),
+        );
+
+        return saved;
     }
 
     async updateProject(id: number, updateProject: ProjectDTO): Promise<ProjectEntity> {

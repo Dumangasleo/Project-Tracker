@@ -18,14 +18,19 @@ export class TeamMember {
     @Column({ unique: true })
     Email: string;
 
-    @Column('text')
+    @Column({ type: 'text', nullable: true })
     Address: string;
 
-    @Column()
+    @Column({ nullable: true })
     ContactNumber: string;
 
     @Column({ default: false })
     IsVerified: boolean;
+
+    // Auth credential (bcrypt hash). select:false so it is never returned
+    // by ordinary queries — login pulls it in explicitly via addSelect().
+    @Column({ nullable: true, select: false })
+    PasswordHash: string;
 
     @ManyToOne(() => Position, (position) => position.members)
     @JoinColumn({ name: 'PositionID' })

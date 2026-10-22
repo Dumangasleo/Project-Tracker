@@ -8,6 +8,7 @@ import {
     JoinColumn
 } from 'typeorm';
 import {TeamMember} from "../../team/entities/team.entities";
+import {ProjectEntity} from "../../project/entities/project.entities";
 
 @Entity('AssignedTasks')
 export class TaskEntity  {
@@ -42,6 +43,16 @@ export class TaskEntity  {
 
     @Column({ type: 'int', nullable: true }) // Nullable para sa unassigned tickets
     TeamMemberId: number;
+
+    // Every task belongs to a project. The DTO already sends ProjectId;
+    // before this relation existed the value was silently dropped.
+    // Nullable at the DB level so pre-existing task rows don't break on sync/migrate.
+    @ManyToOne(() => ProjectEntity)
+    @JoinColumn({ name: 'ProjectId' })
+    project: ProjectEntity;
+
+    @Column({ type: 'int', nullable: true })
+    ProjectId: number;
 
     @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
     EstimatedHours: number;

@@ -12,6 +12,7 @@
   "scripts": {
     "frontend": "yarn workspace frontend dev",
     "backend": "yarn workspace backend start:dev",
+    "notification": "yarn workspace backend start:notification:dev",
     "build:all": "yarn workspaces run build"
   }
 }

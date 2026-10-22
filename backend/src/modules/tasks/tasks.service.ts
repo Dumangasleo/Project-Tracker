@@ -3,12 +3,16 @@ import {InjectRepository} from "@nestjs/typeorm";
 import {Repository} from "typeorm";
 import {CreateTaskDto} from "./taskDTO/taskDTO";
 import {TaskEntity} from "./entities/tasks.entities";
+import {NotificationPublisher} from "../../messaging/NotificationPublisher";
+import {NotificationPattern} from "../../messaging/NotificationPattern";
+import {TaskAssignedEvent} from "../../messaging/event/TaskAssignedEvent";
 
 @Injectable()
 export class TasksService {
     constructor(
         @InjectRepository(TaskEntity)
         private readonly taskRepository: Repository<TaskEntity>,
+        private readonly publisher: NotificationPublisher,
     ) {}
 
     async findAll(page: number = 1, limit: number = 20, taskType?: string): Promise<TaskEntity[]> {
@@ -46,7 +50,20 @@ export class TasksService {
             DateCreated: new Date(),
         });
 
-        return await this.taskRepository.save(newTask);
+        const saved = await this.taskRepository.save(newTask);
+
+        // Publish the domain event; the notification microservice reacts to it.
+        this.publisher.publish(
+            NotificationPattern.TASK_ASSIGNED,
+            new TaskAssignedEvent(
+                saved.id,
+                saved.TaskName,
+                saved.TeamMemberId ?? null,
+                saved.CreatedBy,
+            ),
+        );
+
+        return saved;
     }
 
     async updateTask(id: number, updateData: CreateTaskDto): Promise<TaskEntity> {

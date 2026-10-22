@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,7 +12,7 @@ async function bootstrap() {
     origin: true, // In production, replace with your specific domain
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: 'Content-Type, Accept, X-Server-Timestamp', // Add your custom header here
+    allowedHeaders: 'Content-Type, Accept, X-Server-Timestamp, Authorization', // Authorization = the JWT bearer token
     exposedHeaders: 'X-Server-Timestamp', // Allow the frontend to read the response timestamp
   });
 
@@ -26,8 +27,26 @@ async function bootstrap() {
     transform: true,            // Automatically converts types (e.g., string to number)
   }));
 
+
+  // ==========================================
+  // 4. SWAGGER CONFIGURATION (Ibutang dinhi)
+  // ==========================================
+
+  const config = new DocumentBuilder()
+      .setTitle('Vortex Documentation')
+      .setDescription('API Documentation')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
+
   await app.listen(process.env.PORT ?? 3001);
   console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Swagger UI is running on: ${await app.getUrl()}/api/docs`);
 }
 
 bootstrap().catch((err) => {
