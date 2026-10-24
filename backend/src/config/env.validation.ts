@@ -106,6 +106,26 @@ export class ApiEnv extends DatabaseEnv {
   @IsString()
   @MinLength(32)
   DATA_ENCRYPTION_KEY: string;
+
+  @Transform(({ value }: { value: unknown }) => value || undefined)
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: true })
+  GITEA_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  GITEA_TOKEN?: string;
+
+  @IsString()
+  GITEA_ORG: string = 'vortex';
+
+  @IsOptional()
+  @IsString()
+  GITEA_WEBHOOK_SECRET?: string;
+
+  @IsUrl({ require_tld: false, require_protocol: true })
+  GITEA_WEBHOOK_URL: string =
+    'http://host.docker.internal:3001/api/v1/integrations/gitea/webhook';
 }
 
 function validateWith<T extends object>(

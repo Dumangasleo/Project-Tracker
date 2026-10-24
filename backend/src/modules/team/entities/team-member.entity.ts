@@ -77,6 +77,13 @@ export class TeamMember {
   @Column({ name: 'Avatar', type: 'nvarchar', nullable: true })
   avatar: string | null;
 
+  @Index('UQ_TeamMembers_GitUsername', {
+    unique: true,
+    where: '[GitUsername] IS NOT NULL',
+  })
+  @Column({ name: 'GitUsername', type: 'nvarchar', length: 40, nullable: true })
+  gitUsername: string | null;
+
   @Column({ name: 'Status', default: 'offline' })
   status: string;
 

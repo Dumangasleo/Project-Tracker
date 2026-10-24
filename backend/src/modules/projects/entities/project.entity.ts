@@ -33,6 +33,9 @@ export class Project {
   @Column({ name: 'TeamMemberId', type: 'int', nullable: true })
   leadId: number | null;
 
+  @Column({ name: 'Repository', type: 'nvarchar', length: 200, nullable: true })
+  repository: string | null;
+
   @ManyToOne(() => TeamMember, { createForeignKeyConstraints: false })
   @JoinColumn({ name: 'TeamMemberId' })
   lead: TeamMember | null;

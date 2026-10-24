@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DataProtectionModule } from './modules/data-protection/data-protection.module';
+import { GitModule } from './modules/git/git.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -46,6 +47,7 @@ import { TeamModule } from './modules/team/team.module';
     TeamModule,
     ProjectsModule,
     TasksModule,
+    GitModule,
     DashboardModule,
     NotificationsModule,
     SettingsModule,
