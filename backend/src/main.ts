@@ -12,7 +12,9 @@ import { NodeEnv, type ApiEnv } from './config/env.validation';
 import { setupSwagger } from './config/swagger.config';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
   const config = app.get<ConfigService<ApiEnv, true>>(ConfigService);
   const isProduction =
     config.get('NODE_ENV', { infer: true }) === NodeEnv.Production;

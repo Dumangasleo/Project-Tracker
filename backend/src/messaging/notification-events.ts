@@ -3,6 +3,9 @@ export enum NotificationEvent {
   TaskAssigned = 'task.assigned',
   ProjectCreated = 'project.created',
   MemberRegistered = 'member.registered',
+  ReviewRequested = 'review.requested',
+  ReviewCommented = 'review.commented',
+  ReviewDecided = 'review.decided',
 }
 
 export const NOTIFICATION_CLIENT = 'NOTIFICATION_CLIENT';

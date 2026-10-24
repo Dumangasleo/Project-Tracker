@@ -107,6 +107,25 @@ export class ApiEnv extends DatabaseEnv {
   @MinLength(32)
   DATA_ENCRYPTION_KEY: string;
 
+  @IsOptional()
+  @IsString()
+  GITHUB_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  BITBUCKET_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  BITBUCKET_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  GEMINI_API_KEY?: string;
+
+  @IsString()
+  AI_REVIEW_MODEL: string = 'gemini-3.5-flash-lite';
+
   @Transform(({ value }: { value: unknown }) => value || undefined)
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: true })

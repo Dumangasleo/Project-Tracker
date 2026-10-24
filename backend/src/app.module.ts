@@ -15,6 +15,7 @@ import { GitModule } from './modules/git/git.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TeamModule } from './modules/team/team.module';
@@ -47,6 +48,7 @@ import { TeamModule } from './modules/team/team.module';
     TeamModule,
     ProjectsModule,
     TasksModule,
+    ReviewsModule,
     GitModule,
     DashboardModule,
     NotificationsModule,

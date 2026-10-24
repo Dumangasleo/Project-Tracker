@@ -2,6 +2,7 @@ export enum TaskStatus {
   Todo = 0,
   InProgress = 1,
   Done = 2,
+  InReview = 3,
 }
 
 export enum TaskType {

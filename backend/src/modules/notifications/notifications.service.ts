@@ -1,9 +1,14 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThan, Not, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { ErrorCode } from '../../common/constants/error-codes';
 import type { MemberRegisteredEvent } from '../../messaging/events/member-registered.event';
 import type { ProjectCreatedEvent } from '../../messaging/events/project-created.event';
+import type {
+  ReviewCommentedEvent,
+  ReviewDecidedEvent,
+  ReviewRequestedEvent,
+} from '../../messaging/events/review.events';
 import type { TaskAssignedEvent } from '../../messaging/events/task-assigned.event';
 import { Task } from '../tasks/entities/task.entity';
 import { TaskStatus } from '../tasks/task.enums';
@@ -87,10 +92,43 @@ export class NotificationsService {
     });
   }
 
+  async onReviewRequested(event: ReviewRequestedEvent): Promise<void> {
+    await this.createMany(event.reviewerIds, {
+      type: NotificationType.ReviewRequested,
+      title: 'Code review requested',
+      message: `${event.authorName} asked you to review "${event.title}".`,
+      referenceId: event.reviewId,
+    });
+  }
+
+  async onReviewCommented(event: ReviewCommentedEvent): Promise<void> {
+    await this.createMany(event.recipientIds, {
+      type: NotificationType.ReviewComment,
+      title: 'New review comment',
+      message: `${event.commenterName} commented on "${event.title}".`,
+      referenceId: event.reviewId,
+    });
+  }
+
+  async onReviewDecided(event: ReviewDecidedEvent): Promise<void> {
+    await this.create({
+      recipientId: event.authorId,
+      type: NotificationType.ReviewDecision,
+      title: event.approved ? 'Pull request approved' : 'Changes requested',
+      message: event.approved
+        ? `${event.reviewerName} approved "${event.title}".`
+        : `${event.reviewerName} requested changes on "${event.title}".`,
+      referenceId: event.reviewId,
+    });
+  }
+
   /** Reminds assignees of open tasks, at most once per cooldown window per task. */
   async createOpenTaskReminders(): Promise<number> {
     const openTasks = await this.tasks.find({
-      where: { status: Not(TaskStatus.Done), assigneeId: Not(IsNull()) },
+      where: {
+        status: In([TaskStatus.Todo, TaskStatus.InProgress]),
+        assigneeId: Not(IsNull()),
+      },
       select: { id: true, name: true, assigneeId: true },
     });
     if (openTasks.length === 0) return 0;
@@ -123,5 +161,20 @@ export class NotificationsService {
   private async create(data: Partial<Notification>): Promise<void> {
     await this.notifications.save(this.notifications.create(data));
     this.logger.log(`Notification ${data.type} -> member ${data.recipientId}`);
+  }
+
+  private async createMany(
+    recipientIds: number[],
+    data: Omit<Partial<Notification>, 'recipientId'>,
+  ): Promise<void> {
+    if (recipientIds.length === 0) return;
+    await this.notifications.save(
+      recipientIds.map((recipientId) =>
+        this.notifications.create({ ...data, recipientId }),
+      ),
+    );
+    this.logger.log(
+      `Notification ${data.type} -> members ${recipientIds.join(', ')}`,
+    );
   }
 }
