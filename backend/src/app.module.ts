@@ -1,70 +1,58 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ClientRequestGuard } from './common/guards/client-request.guard';
+import { buildDatabaseOptions } from './config/database.config';
+import { validateApiEnv, type ApiEnv } from './config/env.validation';
+import { MessagingModule } from './messaging/messaging.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { TasksModule } from './modules/tasks/tasks.module';
-import {TeamModule} from "./modules/team/team.module";
-
-
+import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 import { SettingsModule } from './modules/settings/settings.module';
-import {TypeOrmModule} from "@nestjs/typeorm";
-import {ConfigModule, ConfigService} from "@nestjs/config";
-import {EncryptionInterceptor} from "./common/interceptors/encryption.interceptor";
-import {DecryptionInterceptor} from "./common/interceptors/decryption.interceptor";
-import { ProjectModule } from './modules/project/project.module';
-import { MessagingModule } from './messaging/MessagingModule';
-import { NotificationModule } from './modules/notification/NotificationModule';
-import { AuthModule } from './modules/auth/AuthModule';
-
+import { TasksModule } from './modules/tasks/tasks.module';
+import { TeamModule } from './modules/team/team.module';
 
 @Module({
   imports: [
-
-      ConfigModule.forRoot({
-        isGlobal: true,
-        envFilePath: '.env',// so we can use the .env file in any module
-      }),
-
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      validate: validateApiEnv,
+    }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mssql',
-        host: configService.get<string>('DB_HOST'),
-        port: Number(configService.get<string | number>('DB_PORT')),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+      useFactory: (config: ConfigService<ApiEnv, true>) => ({
+        ...buildDatabaseOptions({
+          DB_HOST: config.get('DB_HOST', { infer: true }),
+          DB_PORT: config.get('DB_PORT', { infer: true }),
+          DB_USERNAME: config.get('DB_USERNAME', { infer: true }),
+          DB_PASSWORD: config.get('DB_PASSWORD', { infer: true }),
+          DB_NAME: config.get('DB_NAME', { infer: true }),
+        }),
         autoLoadEntities: true,
-        // Dev auto-syncs the schema. Prod MUST set DB_SYNC=false and use migrations.
-        synchronize: (configService.get<string>('DB_SYNC') ?? 'true') === 'true',
-        options: {
-          encrypt: false,
-          trustServerCertificate: true,
-        },
+        synchronize: config.get('DB_SYNC', { infer: true }),
       }),
     }),
-      DashboardModule, TasksModule, TeamModule, SettingsModule, ProjectModule,
-      // Producer-side messaging + the notification HTTP read API.
-      MessagingModule, NotificationModule,
-      // Auth registers the GLOBAL JwtAuthGuard (secure by default).
-      AuthModule],
-
-  controllers: [AppController],
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    MessagingModule,
+    AuthModule,
+    TeamModule,
+    ProjectsModule,
+    TasksModule,
+    DashboardModule,
+    NotificationsModule,
+    SettingsModule,
+    HealthModule,
+  ],
   providers: [
-      AppService,
-    //   EncryptionInterceptor,
-    //   DecryptionInterceptor,
-    // {
-    //   provide: APP_INTERCEPTOR,
-    //   useClass: EncryptionInterceptor,
-    // },
-    // {
-    //   provide: APP_INTERCEPTOR,
-    //   useClass: DecryptionInterceptor,
-    // },
-    // NOTE: Project providers/controllers live in ProjectModule (imported above).
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClientRequestGuard },
+    { provide: APP_GUARD, useExisting: JwtAuthGuard },
   ],
 })
 export class AppModule {}

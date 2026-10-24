@@ -1,55 +1,65 @@
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { HttpHeader } from './common/constants/http-headers';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { requestContext } from './common/middleware/request-context.middleware';
+import { NodeEnv, type ApiEnv } from './config/env.validation';
+import { setupSwagger } from './config/swagger.config';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const config = app.get<ConfigService<ApiEnv, true>>(ConfigService);
+  const isProduction =
+    config.get('NODE_ENV', { infer: true }) === NodeEnv.Production;
 
-  // 1. Better CORS Configuration
-  // We need to allow 'X-Server-Timestamp' because your Axios interceptor sends it
+  app.disable('x-powered-by');
+  app.use(helmet({ contentSecurityPolicy: isProduction ? undefined : false }));
+  app.use(cookieParser());
+  app.use(requestContext);
+
   app.enableCors({
-    origin: true, // In production, replace with your specific domain
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    origin: config
+      .get('CORS_ORIGINS', { infer: true })
+      .split(',')
+      .map((origin) => origin.trim()),
     credentials: true,
-    allowedHeaders: 'Content-Type, Accept, X-Server-Timestamp, Authorization', // Authorization = the JWT bearer token
-    exposedHeaders: 'X-Server-Timestamp', // Allow the frontend to read the response timestamp
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      HttpHeader.ClientId,
+      HttpHeader.ClientTimestamp,
+      HttpHeader.RequestId,
+    ],
+    exposedHeaders: [HttpHeader.RequestId, HttpHeader.ServerTimestamp],
+    maxAge: 600,
   });
 
-  // 2. Global Prefix
   app.setGlobalPrefix('api');
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.enableShutdownHooks();
 
-  // 3. Enable Global Validation
-  // This activates the class-validator decorators in your DTOs
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,            // Strips out data that isn't in your DTO
-    forbidNonWhitelisted: true, // Rejects requests with extra "junk" data
-    transform: true,            // Automatically converts types (e.g., string to number)
-  }));
+  if (!isProduction) setupSwagger(app);
 
-
-  // ==========================================
-  // 4. SWAGGER CONFIGURATION (Ibutang dinhi)
-  // ==========================================
-
-  const config = new DocumentBuilder()
-      .setTitle('Vortex Documentation')
-      .setDescription('API Documentation')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-
-  await app.listen(process.env.PORT ?? 3001);
-  console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Swagger UI is running on: ${await app.getUrl()}/api/docs`);
+  const port = config.get('PORT', { infer: true });
+  await app.listen(port);
+  Logger.log(`API listening on http://localhost:${port}/api/v1`, 'Bootstrap');
 }
 
-bootstrap().catch((err) => {
-  console.error('Error during NestJS startup:', err);
+bootstrap().catch((error: Error) => {
+  Logger.error('API failed to start', error.stack, 'Bootstrap');
   process.exit(1);
 });

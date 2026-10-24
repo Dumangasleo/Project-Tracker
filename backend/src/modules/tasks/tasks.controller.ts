@@ -1,37 +1,74 @@
-import {Controller, Post, Body, Get, Put, Param, Delete, Query} from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthUser } from '../../common/interfaces/auth-user.interface';
+import type { Paginated } from '../../common/interfaces/paginated.interface';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { TaskQueryDto } from './dto/task-query.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
+import { Task } from './entities/task.entity';
 import { TasksService } from './tasks.service';
-import {CreateTaskDto} from "./taskDTO/taskDTO";
 
-
+@ApiTags('Tasks')
+@ApiBearerAuth()
 @Controller('tasks')
 export class TasksController {
-    constructor(private readonly tasksService: TasksService) {}
+  constructor(private readonly tasks: TasksService) {}
 
-    @Get()
-    async getAllTasks(
-        @Query('page') page?: string,
-        @Query('limit') limit?: string,
-        @Query('taskType') taskType?: string
-    ) {
+  @Get()
+  @ApiOperation({ summary: 'List tasks (paginated, filterable by type)' })
+  findAll(@Query() query: TaskQueryDto): Promise<Paginated<Task>> {
+    return this.tasks.findAll(query);
+  }
 
-        const pageNum = page ? Number(page) : 1;
-        const limitNum = limit ? Number(limit) : 20;
+  @Post()
+  @ApiOperation({
+    summary: 'Create a task; the creator is the signed-in member',
+  })
+  create(
+    @Body() dto: CreateTaskDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<Task> {
+    return this.tasks.create(dto, user.id);
+  }
 
-        return await this.tasksService.findAll(pageNum, limitNum, taskType);
-    }
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a task' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTaskDto,
+  ): Promise<Task> {
+    return this.tasks.update(id, dto);
+  }
 
-    @Post('assign')
-    async assign(@Body() taskData: CreateTaskDto) {
-        return await this.tasksService.assignTask(taskData);
-    }
+  @Post(':id/claim')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign an unassigned task to the signed-in member',
+  })
+  claim(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ): Promise<Task> {
+    return this.tasks.claim(id, user.id);
+  }
 
-    @Put(':id')
-    async update(@Param('id') id: number, @Body() updateData: CreateTaskDto) {
-        return await this.tasksService.updateTask(id, updateData);
-    }
-
-    @Delete(':id')
-    async delete(@Param('id') id: number) {
-        return await this.tasksService.deleteTask(id);
-    }
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a task' })
+  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.tasks.remove(id);
+  }
 }

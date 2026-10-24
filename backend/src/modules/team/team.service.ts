@@ -1,68 +1,105 @@
-import {Injectable, NotFoundException} from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { TeamMember } from './entities/team.entities';
-import { Position } from './entities/position.entities';
-import { CreateTeamMemberDto, UpdateTeamMemberDto } from './teamDTO/UpdateTeamMemberDto';
-import { NotificationPublisher } from '../../messaging/NotificationPublisher';
-import { NotificationPattern } from '../../messaging/NotificationPattern';
-import { MemberRegisteredEvent } from '../../messaging/event/MemberRegisteredEvent';
-
+import { Not, Repository } from 'typeorm';
+import { ErrorCode } from '../../common/constants/error-codes';
+import { MemberRegisteredEvent } from '../../messaging/events/member-registered.event';
+import { NotificationEvent } from '../../messaging/notification-events';
+import { NotificationPublisher } from '../../messaging/notification.publisher';
+import { CreateTeamMemberDto } from './dto/create-team-member.dto';
+import { UpdateTeamMemberDto } from './dto/update-team-member.dto';
+import { Position } from './entities/position.entity';
+import { TeamMember } from './entities/team-member.entity';
 
 @Injectable()
 export class TeamService {
-    constructor(
-        @InjectRepository(TeamMember)
-        private teamRepository: Repository<TeamMember>,
+  constructor(
+    @InjectRepository(TeamMember)
+    private readonly members: Repository<TeamMember>,
+    @InjectRepository(Position)
+    private readonly positions: Repository<Position>,
+    private readonly publisher: NotificationPublisher,
+  ) {}
 
-        @InjectRepository(Position)
-        private positionRepository: Repository<Position>, // I-inject ang repository
+  findAll(): Promise<TeamMember[]> {
+    return this.members.find({
+      relations: { position: true },
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+  }
 
-        private readonly publisher: NotificationPublisher,
-    ) {}
+  findPositions(): Promise<Position[]> {
+    return this.positions.find({ order: { title: 'ASC' } });
+  }
 
+  async create(dto: CreateTeamMemberDto): Promise<TeamMember> {
+    const email = dto.email.trim().toLowerCase();
+    await this.assertEmailAvailable(email);
 
-    async findAll(): Promise<TeamMember[]> {
-        return await this.teamRepository.find({ relations: ['position'] });
+    const saved = await this.members.save(
+      this.members.create({ ...dto, email }),
+    );
+
+    this.publisher.publish(
+      NotificationEvent.MemberRegistered,
+      new MemberRegisteredEvent(
+        saved.id,
+        `${saved.firstName} ${saved.lastName}`,
+        saved.email,
+      ),
+    );
+
+    return this.findOne(saved.id);
+  }
+
+  async update(id: number, dto: UpdateTeamMemberDto): Promise<TeamMember> {
+    await this.findOne(id);
+
+    if (dto.email) {
+      dto.email = dto.email.trim().toLowerCase();
+      await this.assertEmailAvailable(dto.email, id);
     }
 
-    // Para sa iyong Vue Combo Box mamaya
-    async findAllPositions(): Promise<Position[]> {
-        return await this.positionRepository.find();
+    if (Object.keys(dto).length > 0) await this.members.update(id, { ...dto });
+    return this.findOne(id);
+  }
+
+  async remove(id: number): Promise<void> {
+    const result = await this.members.delete(id);
+    if (!result.affected) throw notFound(id);
+  }
+
+  private async findOne(id: number): Promise<TeamMember> {
+    const member = await this.members.findOne({
+      where: { id },
+      relations: { position: true },
+    });
+    if (!member) throw notFound(id);
+    return member;
+  }
+
+  private async assertEmailAvailable(
+    email: string,
+    exceptId?: number,
+  ): Promise<void> {
+    const taken = await this.members.existsBy(
+      exceptId ? { email, id: Not(exceptId) } : { email },
+    );
+    if (taken) {
+      throw new ConflictException({
+        message: 'Email is already used by another member.',
+        code: ErrorCode.Conflict,
+      });
     }
+  }
+}
 
-    async create(data: CreateTeamMemberDto): Promise<TeamMember> {
-        const newMember = this.teamRepository.create(data);
-
-        const saved = await this.teamRepository.save(newMember);
-
-        this.publisher.publish(
-            NotificationPattern.MEMBER_REGISTERED,
-            new MemberRegisteredEvent(
-                saved.id,
-                `${saved.FirstName} ${saved.LastName}`,
-                saved.Email,
-            ),
-        );
-
-        return saved;
-    }
-
-    async update(id: number, data: UpdateTeamMemberDto): Promise<TeamMember> {
-        await this.teamRepository.update(id, data);
-        return this.teamRepository.findOneOrFail({ where: { id }, relations: ['position'] });
-    }
-
-    async remove(id: number) {
-        const member = await this.teamRepository.findOneBy({ id });
-        if (!member) throw new NotFoundException('Member not found');
-
-        // Option A: Hard Delete
-        await this.teamRepository.delete(id);
-
-        // Option B: Microservice Event (Optional)
-        // this.client.emit('member_deleted', { id });
-
-        return { deleted: true, id };
-    }
+function notFound(id: number): NotFoundException {
+  return new NotFoundException({
+    message: `Team member ${id} was not found.`,
+    code: ErrorCode.NotFound,
+  });
 }
