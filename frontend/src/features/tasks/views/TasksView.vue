@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { Hand, ListChecks, Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { Copy, GitPullRequest, Hand, ListChecks, Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { errorMessage } from '@/core/http/api-error';
 import { useAuthStore } from '@/features/auth';
+import { SubmitReviewModal, type ReviewDetail } from '@/features/reviews';
 import { useConfirm } from '@/shared/composables/useConfirm';
 import { useInfiniteList } from '@/shared/composables/useInfiniteList';
 import { useToast } from '@/shared/composables/useToast';
@@ -25,11 +27,15 @@ import {
   TASK_FILTER_OPTIONS,
   TASK_STATUS_OPTIONS,
   TASK_TYPE_OPTIONS,
+  TaskStatus,
+  taskBranchName,
+  taskKey,
   type Task,
   type TaskType,
 } from '../model/task.types';
 
 const auth = useAuthStore();
+const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
 
@@ -41,6 +47,8 @@ const { items, loading, hasMore, error, loadMore, reload } = useInfiniteList((pa
 const modalOpen = ref(false);
 const editing = ref<Task | null>(null);
 const claimingId = ref<number | null>(null);
+const reviewOpen = ref(false);
+const reviewTask = ref<Task | null>(null);
 
 const columns: TableColumn[] = [
   { key: 'name', label: 'Task', class: 'w-[30%]' },
@@ -106,8 +114,34 @@ async function remove(task: Task): Promise<void> {
   }
 }
 
+const canSubmitReview = (task: Task) =>
+  task.assigneeId !== null && task.assigneeId === auth.user?.id && task.status !== TaskStatus.Done;
+
+function openSubmitReview(task: Task): void {
+  reviewTask.value = task;
+  reviewOpen.value = true;
+}
+
+async function onReviewSubmitted(review: ReviewDetail): Promise<void> {
+  await router.push({ name: 'review-detail', params: { id: review.id } });
+}
+
+async function copyBranchName(task: Task): Promise<void> {
+  const branch = taskBranchName(task);
+  try {
+    await navigator.clipboard.writeText(branch);
+    toast.success('Branch name copied', `git checkout -b ${branch}`);
+  } catch {
+    toast.info('Branch name', branch);
+  }
+}
+
 function actionsFor(task: Task): MenuItem[] {
   return [
+    { label: 'Copy branch name', icon: Copy, onSelect: () => copyBranchName(task) },
+    ...(canSubmitReview(task)
+      ? [{ label: 'Submit for review', icon: GitPullRequest, onSelect: () => openSubmitReview(task) }]
+      : []),
     { label: 'Edit', icon: Pencil, onSelect: () => openEdit(task) },
     { label: 'Delete', icon: Trash2, danger: true, onSelect: () => remove(task) },
   ];
@@ -140,6 +174,12 @@ function actionsFor(task: Task): MenuItem[] {
       <template #cell-name="{ row }">
         <button type="button" class="block max-w-full text-left" @click="openEdit(row)">
           <span class="flex items-center gap-2">
+            <span
+              class="shrink-0 font-mono text-xs whitespace-nowrap text-fg-subtle"
+              :title="`Use ${taskKey(row.id)} in a pull request title or branch`"
+            >
+              {{ taskKey(row.id) }}
+            </span>
             <BaseBadge :tone="findOption(TASK_TYPE_OPTIONS, row.type)?.tone">
               {{ findOption(TASK_TYPE_OPTIONS, row.type)?.label }}
             </BaseBadge>
@@ -172,9 +212,20 @@ function actionsFor(task: Task): MenuItem[] {
       </template>
 
       <template #cell-status="{ row }">
-        <BaseBadge :tone="findOption(TASK_STATUS_OPTIONS, row.status)?.tone" dot>
-          {{ findOption(TASK_STATUS_OPTIONS, row.status)?.label }}
-        </BaseBadge>
+        <div class="flex flex-col items-start gap-1">
+          <BaseBadge :tone="findOption(TASK_STATUS_OPTIONS, row.status)?.tone" dot>
+            {{ findOption(TASK_STATUS_OPTIONS, row.status)?.label }}
+          </BaseBadge>
+          <button
+            v-if="canSubmitReview(row) && row.status !== TaskStatus.InReview"
+            type="button"
+            class="inline-flex items-center gap-1 text-xs font-medium text-accent-fg hover:underline"
+            @click="openSubmitReview(row)"
+          >
+            <GitPullRequest class="size-3.5" aria-hidden="true" />
+            Submit for review
+          </button>
+        </div>
       </template>
 
       <template #cell-priority="{ row }">
@@ -211,5 +262,6 @@ function actionsFor(task: Task): MenuItem[] {
     </DataTable>
 
     <TaskFormModal v-model:open="modalOpen" :task="editing" @saved="reload" />
+    <SubmitReviewModal v-model:open="reviewOpen" :task="reviewTask" @submitted="onReviewSubmitted" />
   </div>
 </template>

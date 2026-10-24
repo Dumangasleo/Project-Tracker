@@ -1,13 +1,29 @@
 <script setup lang="ts">
-import { Bell, BellOff, CircleCheck, Clock, FolderKanban, UserPlus } from 'lucide-vue-next';
+import {
+  Bell,
+  BellOff,
+  CircleCheck,
+  Clock,
+  FolderKanban,
+  GitPullRequest,
+  MessageSquare,
+  UserCheck,
+  UserPlus,
+} from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref, type Component } from 'vue';
+import { useRouter } from 'vue-router';
 import { useClickOutside } from '@/shared/composables/useClickOutside';
 import { relativeTime } from '@/shared/utils/date';
 import BaseEmptyState from '@/shared/ui/BaseEmptyState.vue';
-import type { AppNotification, NotificationType } from '../model/notification.types';
+import {
+  REVIEW_NOTIFICATION_TYPES,
+  type AppNotification,
+  type NotificationType,
+} from '../model/notification.types';
 import { useNotificationsStore } from '../store/notifications.store';
 
 const store = useNotificationsStore();
+const router = useRouter();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 
@@ -16,6 +32,9 @@ const icons: Record<NotificationType, Component> = {
   PROJECT_CREATED: FolderKanban,
   MEMBER_REGISTERED: UserPlus,
   REMINDER: Clock,
+  REVIEW_REQUESTED: GitPullRequest,
+  REVIEW_COMMENT: MessageSquare,
+  REVIEW_DECISION: UserCheck,
 };
 
 onMounted(store.startPolling);
@@ -24,6 +43,10 @@ useClickOutside([root], () => (open.value = false));
 
 function onSelect(notification: AppNotification): void {
   void store.markAsRead(notification.id);
+  if (REVIEW_NOTIFICATION_TYPES.includes(notification.type) && notification.referenceId !== null) {
+    open.value = false;
+    void router.push({ name: 'review-detail', params: { id: notification.referenceId } });
+  }
 }
 
 function onKeydown(event: KeyboardEvent): void {

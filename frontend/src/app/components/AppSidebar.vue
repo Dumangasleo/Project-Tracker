@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderKanban, LayoutDashboard, ListChecks, LogOut, Settings, Users } from 'lucide-vue-next';
+import { FolderKanban, GitPullRequest, LayoutDashboard, ListChecks, LogOut, Settings, Users } from 'lucide-vue-next';
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuthStore } from '@/features/auth';
 import BaseAvatar from '@/shared/ui/BaseAvatar.vue';
@@ -14,6 +14,7 @@ const navigation = [
   { label: 'Dashboard', to: { name: 'dashboard' }, icon: LayoutDashboard },
   { label: 'Projects', to: { name: 'projects' }, icon: FolderKanban },
   { label: 'Tasks', to: { name: 'tasks' }, icon: ListChecks },
+  { label: 'Code reviews', to: { name: 'reviews' }, icon: GitPullRequest },
   { label: 'Team', to: { name: 'team' }, icon: Users },
   { label: 'Settings', to: { name: 'settings' }, icon: Settings },
 ];

@@ -36,6 +36,18 @@ export const router = createRouter({
           meta: { title: 'Tasks' },
         },
         {
+          path: 'reviews',
+          name: 'reviews',
+          component: () => import('@/features/reviews/views/ReviewsView.vue'),
+          meta: { title: 'Code reviews' },
+        },
+        {
+          path: 'reviews/:id(\\d+)',
+          name: 'review-detail',
+          component: () => import('@/features/reviews/views/ReviewDetailView.vue'),
+          meta: { title: 'Code review' },
+        },
+        {
           path: 'team',
           name: 'team',
           component: () => import('@/features/team/views/TeamView.vue'),

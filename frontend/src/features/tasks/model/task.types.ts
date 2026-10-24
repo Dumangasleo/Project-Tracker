@@ -7,6 +7,7 @@ export const TaskStatus = {
   Todo: 0,
   InProgress: 1,
   Done: 2,
+  InReview: 3,
 } as const;
 
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
@@ -24,6 +25,7 @@ export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 export const TASK_STATUS_OPTIONS: readonly ToneOption<TaskStatus>[] = [
   { value: TaskStatus.Todo, label: 'To do', tone: 'neutral' },
   { value: TaskStatus.InProgress, label: 'In progress', tone: 'info' },
+  { value: TaskStatus.InReview, label: 'In review', tone: 'accent' },
   { value: TaskStatus.Done, label: 'Done', tone: 'success' },
 ];
 
@@ -39,6 +41,19 @@ export const TASK_FILTER_OPTIONS: readonly Option<TaskType | null>[] = [
   { value: null, label: 'All tasks' },
   ...TASK_TYPE_OPTIONS.map(({ value, label }) => ({ value, label })),
 ];
+
+/** Put this in a pull request title or branch so it links to the task automatically. */
+export const taskKey = (id: number): string => `T-${id}`;
+
+export const taskBranchName = (task: Pick<Task, 'id' | 'name'>): string => {
+  const slug = task.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+  return `task/${task.id}${slug ? `-${slug}` : ''}`;
+};
 
 export interface Task {
   id: number;
