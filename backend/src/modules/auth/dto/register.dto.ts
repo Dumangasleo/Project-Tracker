@@ -7,6 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { MAX_EMAIL_LENGTH } from '../../../common/security/field-encryption';
 
 export class RegisterDto {
   @ApiProperty({ example: 'Juan' })
@@ -23,7 +24,7 @@ export class RegisterDto {
 
   @ApiProperty({ example: 'juan@example.com' })
   @IsEmail()
-  @MaxLength(254)
+  @MaxLength(MAX_EMAIL_LENGTH)
   email: string;
 
   @ApiProperty({ example: 'Secret123', minLength: 8 })

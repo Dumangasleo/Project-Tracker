@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { ErrorCode } from '../../common/constants/error-codes';
+import { emailLookupHash } from '../../common/security/field-encryption';
 import { MemberRegisteredEvent } from '../../messaging/events/member-registered.event';
 import { NotificationEvent } from '../../messaging/notification-events';
 import { NotificationPublisher } from '../../messaging/notification.publisher';
@@ -40,7 +41,7 @@ export class TeamService {
     await this.assertEmailAvailable(email);
 
     const saved = await this.members.save(
-      this.members.create({ ...dto, email }),
+      this.members.create({ ...dto, email, emailHash: emailLookupHash(email) }),
     );
 
     this.publisher.publish(
@@ -48,7 +49,6 @@ export class TeamService {
       new MemberRegisteredEvent(
         saved.id,
         `${saved.firstName} ${saved.lastName}`,
-        saved.email,
       ),
     );
 
@@ -58,12 +58,14 @@ export class TeamService {
   async update(id: number, dto: UpdateTeamMemberDto): Promise<TeamMember> {
     await this.findOne(id);
 
+    const changes: Partial<TeamMember> = { ...dto };
     if (dto.email) {
-      dto.email = dto.email.trim().toLowerCase();
-      await this.assertEmailAvailable(dto.email, id);
+      changes.email = dto.email.trim().toLowerCase();
+      changes.emailHash = emailLookupHash(changes.email);
+      await this.assertEmailAvailable(changes.email, id);
     }
 
-    if (Object.keys(dto).length > 0) await this.members.update(id, { ...dto });
+    if (Object.keys(changes).length > 0) await this.members.update(id, changes);
     return this.findOne(id);
   }
 
@@ -85,8 +87,9 @@ export class TeamService {
     email: string,
     exceptId?: number,
   ): Promise<void> {
+    const emailHash = emailLookupHash(email);
     const taken = await this.members.existsBy(
-      exceptId ? { email, id: Not(exceptId) } : { email },
+      exceptId ? { emailHash, id: Not(exceptId) } : { emailHash },
     );
     if (taken) {
       throw new ConflictException({

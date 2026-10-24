@@ -102,6 +102,10 @@ export class ApiEnv extends DatabaseEnv {
 
   @IsString()
   MICROSOFT_TENANT_ID: string = 'common';
+
+  @IsString()
+  @MinLength(32)
+  DATA_ENCRYPTION_KEY: string;
 }
 
 function validateWith<T extends object>(

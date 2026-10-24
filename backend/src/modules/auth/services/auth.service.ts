@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Repository } from 'typeorm';
 import { ErrorCode } from '../../../common/constants/error-codes';
+import { emailLookupHash } from '../../../common/security/field-encryption';
 import { Position } from '../../team/entities/position.entity';
 import { TeamMember } from '../../team/entities/team-member.entity';
 import { BCRYPT_ROUNDS } from '../auth.constants';
@@ -47,7 +48,7 @@ export class AuthService {
     context: SessionContext,
   ): Promise<AuthSession> {
     const email = normalizeEmail(dto.email);
-    if (await this.members.existsBy({ email })) {
+    if (await this.members.existsBy({ emailHash: emailLookupHash(email) })) {
       throw new ConflictException({
         message: 'Email is already registered.',
         code: ErrorCode.Conflict,
@@ -67,7 +68,9 @@ export class AuthService {
     const member = await this.members
       .createQueryBuilder('member')
       .addSelect('member.passwordHash')
-      .where('member.email = :email', { email: normalizeEmail(dto.email) })
+      .where('member.emailHash = :emailHash', {
+        emailHash: emailLookupHash(dto.email),
+      })
       .getOne();
 
     const passwordMatches = await bcrypt.compare(
@@ -115,6 +118,7 @@ export class AuthService {
   async createMember(data: NewMember): Promise<TeamMember> {
     const member = this.members.create({
       ...data,
+      emailHash: emailLookupHash(data.email),
       positionId: await this.defaultPositionId(),
       isVerified: true,
       status: 'online',
@@ -123,7 +127,7 @@ export class AuthService {
   }
 
   findMemberByEmail(email: string): Promise<TeamMember | null> {
-    return this.members.findOneBy({ email: normalizeEmail(email) });
+    return this.members.findOneBy({ emailHash: emailLookupHash(email) });
   }
 
   private async defaultPositionId(): Promise<number> {

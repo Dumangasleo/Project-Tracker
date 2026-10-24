@@ -10,6 +10,7 @@ import { MessagingModule } from './messaging/messaging.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DataProtectionModule } from './modules/data-protection/data-protection.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -40,6 +41,7 @@ import { TeamModule } from './modules/team/team.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     MessagingModule,
+    DataProtectionModule,
     AuthModule,
     TeamModule,
     ProjectsModule,

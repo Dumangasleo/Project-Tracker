@@ -82,7 +82,7 @@ export class NotificationsService {
       recipientId: event.memberId,
       type: NotificationType.MemberRegistered,
       title: 'Welcome to the team',
-      message: `Hi ${event.fullName}, your account (${event.email}) is ready.`,
+      message: `Hi ${event.fullName}, your account is ready.`,
       referenceId: event.memberId,
     });
   }

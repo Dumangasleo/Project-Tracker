@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { encryptedColumn } from '../../../common/security/field-encryption';
 import { TeamMember } from '../../team/entities/team-member.entity';
 import { SsoProvider } from '../sso/sso-provider.enum';
 
@@ -30,7 +31,7 @@ export class ExternalIdentity {
   @JoinColumn({ name: 'MemberId' })
   member: TeamMember;
 
-  @Column({ name: 'Email', length: 255 })
+  @Column({ name: 'Email', length: 255, transformer: encryptedColumn })
   email: string;
 
   @CreateDateColumn({ name: 'CreatedAt' })

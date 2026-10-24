@@ -8,6 +8,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import { MAX_EMAIL_LENGTH } from '../../../common/security/field-encryption';
 
 export const MEMBER_STATUSES = ['online', 'offline'] as const;
 
@@ -32,7 +33,7 @@ export class CreateTeamMemberDto {
 
   @ApiProperty({ example: 'juan@example.com' })
   @IsEmail()
-  @MaxLength(254)
+  @MaxLength(MAX_EMAIL_LENGTH)
   email: string;
 
   @ApiProperty({ example: 1 })
