@@ -1,5 +1,5 @@
 export default {
-    plugins: {
-        '@tailwindcss/postcss': {}, // Nilagyan natin ng '@tailwindcss/' sa unahan
-    },
-}
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
