@@ -5,14 +5,21 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
+  "workspaces": {
+    "packages": [
+      "frontend",
+      "backend"
+    ],
+    "nohoist": [
+      "**"
+    ]
+  },
   "scripts": {
     "frontend": "yarn workspace frontend dev",
     "backend": "yarn workspace backend start:dev",
     "notification": "yarn workspace backend start:notification:dev",
+    "test": "yarn workspace backend test",
     "build:all": "yarn workspaces run build"
-  }
+  },
+  "packageManager": "yarn@1.22.22"
 }
