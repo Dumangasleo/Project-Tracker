@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { FolderKanban, Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { FolderKanban, GitBranch, Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
 import { errorMessage } from '@/core/http/api-error';
+import { RepositoryModal } from '@/features/git';
 import { useConfirm } from '@/shared/composables/useConfirm';
 import { useInfiniteList } from '@/shared/composables/useInfiniteList';
 import { useToast } from '@/shared/composables/useToast';
@@ -29,6 +30,8 @@ const { items, loading, hasMore, error, loadMore, reload } = useInfiniteList((pa
 
 const modalOpen = ref(false);
 const editing = ref<Project | null>(null);
+const repositoryOpen = ref(false);
+const repositoryProject = ref<Project | null>(null);
 
 const columns: TableColumn[] = [
   { key: 'name', label: 'Project', class: 'w-[38%]' },
@@ -69,8 +72,21 @@ async function remove(project: Project): Promise<void> {
   }
 }
 
+function openRepository(project: Project): void {
+  repositoryProject.value = project;
+  repositoryOpen.value = true;
+}
+
+function onRepositoryChanged(repository: string | null): void {
+  if (!repositoryProject.value) return;
+  const id = repositoryProject.value.id;
+  items.value = items.value.map((project) => (project.id === id ? { ...project, repository } : project));
+  repositoryProject.value = { ...repositoryProject.value, repository };
+}
+
 function actionsFor(project: Project): MenuItem[] {
   return [
+    { label: 'Repository', icon: GitBranch, onSelect: () => openRepository(project) },
     { label: 'Edit', icon: Pencil, onSelect: () => openEdit(project) },
     { label: 'Delete', icon: Trash2, danger: true, onSelect: () => remove(project) },
   ];
@@ -100,6 +116,14 @@ function actionsFor(project: Project): MenuItem[] {
         <button type="button" class="block max-w-full text-left" @click="openEdit(row)">
           <span class="block truncate font-medium text-fg hover:text-accent-fg">{{ row.name }}</span>
           <span class="block truncate text-xs text-fg-muted">{{ row.description || 'No description' }}</span>
+        </button>
+        <button
+          type="button"
+          class="mt-1 inline-flex max-w-full items-center gap-1 text-xs text-fg-muted hover:text-accent-fg"
+          @click="openRepository(row)"
+        >
+          <GitBranch class="size-3.5 shrink-0" aria-hidden="true" />
+          <span class="truncate font-mono">{{ row.repository ?? 'Add repository' }}</span>
         </button>
       </template>
 
@@ -146,5 +170,6 @@ function actionsFor(project: Project): MenuItem[] {
     </DataTable>
 
     <ProjectFormModal v-model:open="modalOpen" :project="editing" @saved="reload" />
+    <RepositoryModal v-model:open="repositoryOpen" :project="repositoryProject" @changed="onRepositoryChanged" />
   </div>
 </template>

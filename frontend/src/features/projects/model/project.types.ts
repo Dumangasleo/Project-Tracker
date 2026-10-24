@@ -28,6 +28,7 @@ export interface Project {
   priority: Priority;
   leadId: number | null;
   lead: MemberRef | null;
+  repository: string | null;
   createdAt: string;
   updatedAt: string;
 }

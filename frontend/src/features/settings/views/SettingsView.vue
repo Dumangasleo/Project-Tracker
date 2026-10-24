@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { errorMessage } from '@/core/http/api-error';
 import { useAuthStore } from '@/features/auth';
+import { GitAccountCard } from '@/features/git';
 import { useTheme, type ThemePreference } from '@/shared/composables/useTheme';
 import { useToast } from '@/shared/composables/useToast';
 import type { Option } from '@/shared/types/tone';
@@ -86,6 +87,8 @@ async function signOut(): Promise<void> {
         </dl>
       </div>
     </BaseCard>
+
+    <GitAccountCard />
 
     <BaseCard title="Appearance" description="Choose how Vortex Sync looks on this device.">
       <SegmentedControl v-model="preference" :options="themeOptions" label="Theme" />
