@@ -1,8 +1,13 @@
 # Local infrastructure for Vortex Sync.
-# Only RabbitMQ lives here — your MSSQL stays wherever you already run it.
+# MSSQL stays wherever you already run it.
 #
-#   docker compose up -d          # start RabbitMQ
-#   http://localhost:15672        # management UI (login: guest / guest)
+#   docker compose up -d          # RabbitMQ + Gitea (+ CI runner once `corepack yarn git:setup` has run)
+#   http://localhost:15672        # RabbitMQ management UI (login: guest / guest)
+#   http://localhost:3002         # Gitea: your own Git server (repos, pull requests, CI/CD)
+#
+# GITEA_PUBLIC_URL must be reachable from your browser AND from CI job containers.
+# host.docker.internal works on this machine; for a team server use its LAN name or IP
+# (after changing it: docker compose down gitea-runner && docker volume rm projectvuejs_gitea-runner-data && corepack yarn git:setup).
 services:
   rabbitmq:
     image: rabbitmq:3-management
@@ -19,3 +24,58 @@ services:
       timeout: 10s
       retries: 5
     restart: unless-stopped
+
+  gitea:
+    image: gitea/gitea:28.1.0
+    container_name: vortex-gitea
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__ROOT_URL: ${GITEA_PUBLIC_URL:-http://host.docker.internal:3002}/
+      # Always hand out ROOT_URL in clone links, even when the API is called through localhost.
+      GITEA__server__PUBLIC_URL_DETECTION: never
+      GITEA__server__SSH_DOMAIN: ${GITEA_SSH_DOMAIN:-host.docker.internal}
+      GITEA__server__SSH_PORT: "2222"
+      GITEA__security__INSTALL_LOCK: "true"
+      # Accounts are created from Vortex Sync (Settings → Git account).
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__service__REQUIRE_SIGNIN_VIEW: "true"
+      GITEA__actions__ENABLED: "true"
+      # Lets Gitea call the Vortex Sync API webhook on this machine / your LAN.
+      GITEA__webhook__ALLOWED_HOST_LIST: "private,loopback"
+    ports:
+      - "3002:3000"     # Web UI + Git over HTTPS-style clone (http in local setups)
+      - "2222:22"       # Git over SSH
+    volumes:
+      - gitea-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # CI/CD runner for Gitea Actions (.gitea/workflows/*.yml). Starts once the
+  # setup script has written GITEA_RUNNER_TOKEN and COMPOSE_PROFILES=ci to .env.
+  gitea-runner:
+    image: gitea/act_runner:0.6.1
+    container_name: vortex-gitea-runner
+    profiles: ["ci"]
+    depends_on:
+      gitea:
+        condition: service_healthy
+    environment:
+      # Job containers clone from this address, so it must not be the compose-internal "gitea" name.
+      GITEA_INSTANCE_URL: ${GITEA_PUBLIC_URL:-http://host.docker.internal:3002}
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_TOKEN:-}
+      GITEA_RUNNER_NAME: vortex-runner
+      GITEA_RUNNER_LABELS: "ubuntu-latest:docker://node:22-bookworm,node-22:docker://node:22-bookworm"
+    volumes:
+      - gitea-runner-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  gitea-data:
+  gitea-runner-data:

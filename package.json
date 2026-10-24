@@ -19,7 +19,8 @@
     "backend": "yarn workspace backend start:dev",
     "notification": "yarn workspace backend start:notification:dev",
     "test": "yarn workspace backend test",
-    "build:all": "yarn workspaces run build"
+    "build:all": "yarn workspaces run build",
+    "git:setup": "node scripts/setup-git.mjs"
   },
   "packageManager": "yarn@1.22.22"
 }
